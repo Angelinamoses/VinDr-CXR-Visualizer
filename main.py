@@ -7,35 +7,62 @@ LABELS_PATH = "data/annotations/image_labels_train.csv"
 
 def main():
 
-    # Load annotation data
     annotations = pd.read_csv(ANNOTATIONS_PATH)
-
-    # Load image-level classification labels
     labels = pd.read_csv(LABELS_PATH)
 
     print("\n" + "=" * 60)
-    print("ANNOTATIONS TRAIN")
+    print("DATASET SUMMARY")
     print("=" * 60)
 
-    print("Shape:", annotations.shape)
+    print(f"Annotation rows: {len(annotations):,}")
+    print(f"Classification rows: {len(labels):,}")
+    print(f"Unique images: {labels['image_id'].nunique():,}")
 
-    print("\nColumns:")
-    print(annotations.columns.tolist())
+    # ---------------------------------------------------------
+    # Find annotations that actually have bounding boxes
+    # ---------------------------------------------------------
 
-    print("\nFirst 5 rows:")
-    print(annotations.head())
+    boxes = annotations.dropna(
+        subset=["x_min", "y_min", "x_max", "y_max"]
+    )
+
+    print(f"Rows with bounding boxes: {len(boxes):,}")
+    print(f"Unique images with bounding boxes: "
+          f"{boxes['image_id'].nunique():,}")
+
+    # ---------------------------------------------------------
+    # Pick the first image that has a bounding box
+    # ---------------------------------------------------------
+
+    image_id = boxes.iloc[0]["image_id"]
 
     print("\n" + "=" * 60)
-    print("IMAGE LABELS TRAIN")
+    print("SELECTED IMAGE")
     print("=" * 60)
 
-    print("Shape:", labels.shape)
+    print("Image ID:", image_id)
 
-    print("\nColumns:")
-    print(labels.columns.tolist())
+    # ---------------------------------------------------------
+    # Show bounding-box annotations
+    # ---------------------------------------------------------
 
-    print("\nFirst 5 rows:")
-    print(labels.head())
+    image_annotations = annotations[
+        annotations["image_id"] == image_id
+    ]
+
+    print("\nBounding-box annotations:")
+    print(image_annotations.to_string(index=False))
+
+    # ---------------------------------------------------------
+    # Show classification labels
+    # ---------------------------------------------------------
+
+    image_labels = labels[
+        labels["image_id"] == image_id
+    ]
+
+    print("\nClassification labels:")
+    print(image_labels.to_string(index=False))
 
 
 if __name__ == "__main__":
