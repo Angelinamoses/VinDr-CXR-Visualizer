@@ -7,62 +7,81 @@ LABELS_PATH = "data/annotations/image_labels_train.csv"
 
 def main():
 
+    # Load CSV files
     annotations = pd.read_csv(ANNOTATIONS_PATH)
     labels = pd.read_csv(LABELS_PATH)
 
-    print("\n" + "=" * 60)
-    print("DATASET SUMMARY")
-    print("=" * 60)
+    # Ask user for image ID
+    image_id = input("\nEnter Image ID: ").strip()
 
-    print(f"Annotation rows: {len(annotations):,}")
-    print(f"Classification rows: {len(labels):,}")
-    print(f"Unique images: {labels['image_id'].nunique():,}")
-
-    # ---------------------------------------------------------
-    # Find annotations that actually have bounding boxes
-    # ---------------------------------------------------------
-
-    boxes = annotations.dropna(
-        subset=["x_min", "y_min", "x_max", "y_max"]
-    )
-
-    print(f"Rows with bounding boxes: {len(boxes):,}")
-    print(f"Unique images with bounding boxes: "
-          f"{boxes['image_id'].nunique():,}")
-
-    # ---------------------------------------------------------
-    # Pick the first image that has a bounding box
-    # ---------------------------------------------------------
-
-    image_id = boxes.iloc[0]["image_id"]
-
-    print("\n" + "=" * 60)
-    print("SELECTED IMAGE")
-    print("=" * 60)
-
-    print("Image ID:", image_id)
-
-    # ---------------------------------------------------------
-    # Show bounding-box annotations
-    # ---------------------------------------------------------
-
+    # Find annotations for this image
     image_annotations = annotations[
         annotations["image_id"] == image_id
     ]
 
-    print("\nBounding-box annotations:")
-    print(image_annotations.to_string(index=False))
-
-    # ---------------------------------------------------------
-    # Show classification labels
-    # ---------------------------------------------------------
-
+    # Find classification labels for this image
     image_labels = labels[
         labels["image_id"] == image_id
     ]
 
-    print("\nClassification labels:")
-    print(image_labels.to_string(index=False))
+    print("\n" + "=" * 70)
+    print("IMAGE INFORMATION")
+    print("=" * 70)
+
+    print("Image ID:", image_id)
+
+    # --------------------------------------------------
+    # Bounding-box annotations
+    # --------------------------------------------------
+
+    print("\n" + "-" * 70)
+    print("BOUNDING-BOX ANNOTATIONS")
+    print("-" * 70)
+
+    if image_annotations.empty:
+        print("No annotations found.")
+    else:
+        for _, row in image_annotations.iterrows():
+
+            print(f"\nRadiologist: {row['rad_id']}")
+            print(f"Finding: {row['class_name']}")
+
+            if pd.isna(row["x_min"]):
+                print("Bounding box: Not available")
+            else:
+                print(
+                    f"Bounding box: "
+                    f"({row['x_min']:.2f}, {row['y_min']:.2f}) → "
+                    f"({row['x_max']:.2f}, {row['y_max']:.2f})"
+                )
+
+    # --------------------------------------------------
+    # Classification labels
+    # --------------------------------------------------
+
+    print("\n" + "-" * 70)
+    print("CLASSIFICATION LABELS")
+    print("-" * 70)
+
+    if image_labels.empty:
+        print("No classification labels found.")
+    else:
+
+        for _, row in image_labels.iterrows():
+
+            print(f"\nRadiologist: {row['rad_id']}")
+
+            findings = []
+
+            for column in labels.columns[2:]:
+
+                if row[column] == 1:
+                    findings.append(column)
+
+            if findings:
+                print("Findings:", ", ".join(findings))
+            else:
+                print("Findings: None")
 
 
 if __name__ == "__main__":
