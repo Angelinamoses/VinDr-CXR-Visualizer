@@ -4,6 +4,7 @@ import pandas as pd
 import pydicom
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
+from matplotlib.lines import Line2D
 
 
 # =========================================================
@@ -20,6 +21,9 @@ IMAGE_FOLDER = "data/images"
 # =========================================================
 
 def load_data():
+    """
+    Load the training annotation and classification CSV files.
+    """
 
     annotations = pd.read_csv(ANNOTATIONS_PATH)
     labels = pd.read_csv(LABELS_PATH)
@@ -32,6 +36,9 @@ def load_data():
 # =========================================================
 
 def find_dicom(image_id):
+    """
+    Find the DICOM file corresponding to an image ID.
+    """
 
     dicom_path = os.path.join(
         IMAGE_FOLDER,
@@ -39,7 +46,6 @@ def find_dicom(image_id):
     )
 
     if not os.path.exists(dicom_path):
-
         raise FileNotFoundError(
             f"\nDICOM file not found:\n{dicom_path}"
         )
@@ -52,6 +58,10 @@ def find_dicom(image_id):
 # =========================================================
 
 def get_classification_labels(labels, image_id):
+    """
+    Get all classification findings reported by
+    each radiologist for the selected image.
+    """
 
     image_labels = labels[
         labels["image_id"] == image_id
@@ -63,6 +73,8 @@ def get_classification_labels(labels, image_id):
 
         findings = []
 
+        # First two columns are image_id and rad_id.
+        # Remaining columns represent disease/findings.
         for column in labels.columns[2:]:
 
             if row[column] == 1:
@@ -77,10 +89,13 @@ def get_classification_labels(labels, image_id):
 
 
 # =========================================================
-# GET BOUNDING BOX ANNOTATIONS
+# GET BOUNDING-BOX ANNOTATIONS
 # =========================================================
 
 def get_annotations(annotations, image_id):
+    """
+    Get all annotation records for the selected image.
+    """
 
     image_annotations = annotations[
         annotations["image_id"] == image_id
@@ -94,6 +109,11 @@ def get_annotations(annotations, image_id):
 # =========================================================
 
 def visualize_image(image_id, annotations, labels):
+    """
+    Display the DICOM image together with:
+    - Radiologist classification findings
+    - Bounding-box annotations
+    """
 
     # -----------------------------------------------------
     # Find DICOM
@@ -107,7 +127,17 @@ def visualize_image(image_id, annotations, labels):
 
     ds = pydicom.dcmread(dicom_path)
 
+    # Extract image pixel data
     image = ds.pixel_array
+
+    # -----------------------------------------------------
+    # Handle DICOM photometric interpretation
+    # -----------------------------------------------------
+
+    # Some DICOM images use MONOCHROME1, where lower
+    # pixel values appear brighter. Invert for display.
+    if ds.get("PhotometricInterpretation") == "MONOCHROME1":
+        image = image.max() - image
 
     # -----------------------------------------------------
     # Get annotations and classifications
@@ -131,12 +161,14 @@ def visualize_image(image_id, annotations, labels):
         figsize=(16, 10)
     )
 
-    # Image area
+    # -----------------------------------------------------
+    # Create image and information areas
+    # -----------------------------------------------------
+
     ax = fig.add_axes(
-        [0.05, 0.08, 0.62, 0.82]
+        [0.04, 0.08, 0.62, 0.82]
     )
 
-    # Information area
     info_ax = fig.add_axes(
         [0.70, 0.08, 0.27, 0.82]
     )
@@ -151,19 +183,22 @@ def visualize_image(image_id, annotations, labels):
     )
 
     # -----------------------------------------------------
-    # Draw bounding boxes
+    # Bounding-box line styles
     # -----------------------------------------------------
 
-    # Different line styles for different radiologists
     line_styles = {
         "R8": "-",
         "R9": "--",
         "R10": ":"
     }
 
+    # -----------------------------------------------------
+    # Draw bounding boxes
+    # -----------------------------------------------------
+
     for _, row in image_annotations.iterrows():
 
-        # Skip annotations without bounding boxes
+        # Some annotations do not have bounding boxes.
         if pd.isna(row["x_min"]):
             continue
 
@@ -194,11 +229,11 @@ def visualize_image(image_id, annotations, labels):
     # -----------------------------------------------------
 
     ax.set_title(
-    f"Image ID: {image_id}",
-    fontsize=14,
-    fontweight="bold",
-    pad=10
-)
+        f"Image ID: {image_id}",
+        fontsize=14,
+        fontweight="bold",
+        pad=10
+    )
 
     ax.axis("off")
 
@@ -207,20 +242,23 @@ def visualize_image(image_id, annotations, labels):
     # -----------------------------------------------------
 
     legend_handles = [
-        plt.Line2D(
-            [0], [0],
+        Line2D(
+            [0],
+            [0],
             linestyle="-",
             linewidth=2,
             label="R8"
         ),
-        plt.Line2D(
-            [0], [0],
+        Line2D(
+            [0],
+            [0],
             linestyle="--",
             linewidth=2,
             label="R9"
         ),
-        plt.Line2D(
-            [0], [0],
+        Line2D(
+            [0],
+            [0],
             linestyle=":",
             linewidth=2,
             label="R10"
@@ -230,56 +268,86 @@ def visualize_image(image_id, annotations, labels):
     ax.legend(
         handles=legend_handles,
         loc="lower right",
-        title="Radiologist"
+        title="Radiologist",
+        framealpha=0.9
     )
 
-    # -----------------------------------------------------
-    # Information panel
-    # -----------------------------------------------------
+    # =====================================================
+    # INFORMATION PANEL
+    # =====================================================
 
     info_ax.axis("off")
 
     information = []
 
+    # -----------------------------------------------------
+    # Image information
+    # -----------------------------------------------------
+
     information.append(
         "IMAGE INFORMATION\n"
-        "────────────────────────\n"
     )
 
     information.append(
-        f"Image ID:\n{image_id}\n"
+        "────────────────────────────\n"
     )
+
+    information.append(
+        f"Image ID:\n{image_id}\n\n"
+    )
+
+    # -----------------------------------------------------
+    # Radiologist classifications
+    # -----------------------------------------------------
 
     information.append(
         "RADIOLOGIST CLASSIFICATIONS\n"
-        "────────────────────────\n"
     )
 
-    for result in classifications:
+    information.append(
+        "────────────────────────────\n"
+    )
+
+    if not classifications:
 
         information.append(
-            f"{result['radiologist']}\n"
+            "No classification records found.\n\n"
         )
 
-        if result["findings"]:
+    else:
 
-            for finding in result["findings"]:
-
-                information.append(
-                    f"  • {finding}\n"
-                )
-
-        else:
+        for result in classifications:
 
             information.append(
-                "  • No finding\n"
+                f"{result['radiologist']}\n"
             )
 
-        information.append("\n")
+            if result["findings"]:
+
+                for finding in result["findings"]:
+
+                    information.append(
+                        f"  • {finding}\n"
+                    )
+
+            else:
+
+                information.append(
+                    "  • No finding\n"
+                )
+
+            information.append("\n")
+
+    # -----------------------------------------------------
+    # Bounding-box information
+    # -----------------------------------------------------
 
     information.append(
         "BOUNDING BOXES\n"
-        "────────────────────────\n"
+    )
+
+    information.append(
+        "────────────────────────────\n"
     )
 
     box_count = 0
@@ -297,29 +365,47 @@ def visualize_image(image_id, annotations, labels):
             f"{row['class_name']}\n"
         )
 
-    information.append(
-        f"\nTotal bounding boxes: {box_count}"
-    )
+    if box_count == 0:
+
+        information.append(
+            "No bounding boxes available.\n"
+        )
+
+    else:
+
+        information.append(
+            f"\nTotal bounding boxes: {box_count}\n"
+        )
+
+    # -----------------------------------------------------
+    # Display information panel
+    # -----------------------------------------------------
 
     info_ax.text(
         0,
         1,
         "".join(information),
-        fontsize=11,
+        fontsize=10.5,
         verticalalignment="top",
         family="monospace"
     )
 
-    # -----------------------------------------------------
-    # Overall figure title
-    # -----------------------------------------------------
+    # =====================================================
+    # OVERALL TITLE
+    # =====================================================
 
     fig.suptitle(
-    "VinDr-CXR Annotation Viewer",
-    fontsize=20,
-    fontweight="bold",
-    y=0.96
-)
+        "VinDr-CXR Annotation Viewer",
+        fontsize=20,
+        fontweight="bold",
+        y=0.96
+    )
+
+    # -----------------------------------------------------
+    # IMPORTANT: Display the figure
+    # -----------------------------------------------------
+
+    plt.show()
 
 
 # =========================================================
@@ -332,17 +418,49 @@ def main():
     print("VinDr-CXR Annotation Viewer")
     print("=" * 60)
 
+    # -----------------------------------------------------
+    # Load CSV data
+    # -----------------------------------------------------
+
     annotations, labels = load_data()
+
+    # -----------------------------------------------------
+    # Ask user for image ID
+    # -----------------------------------------------------
 
     image_id = input(
         "\nEnter VinDr-CXR Image ID: "
     ).strip()
 
-    visualize_image(
-        image_id,
-        annotations,
-        labels
-    )
+    # -----------------------------------------------------
+    # Validate image ID
+    # -----------------------------------------------------
+
+    if image_id == "":
+        print("\nError: Image ID cannot be empty.")
+        return
+
+    # -----------------------------------------------------
+    # Check whether the image exists
+    # -----------------------------------------------------
+
+    try:
+
+        visualize_image(
+            image_id,
+            annotations,
+            labels
+        )
+
+    except FileNotFoundError as error:
+
+        print(error)
+
+    except Exception as error:
+
+        print(
+            f"\nAn unexpected error occurred:\n{error}"
+        )
 
 
 # =========================================================
